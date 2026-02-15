@@ -17,6 +17,13 @@ from colorama import init, Fore, Style
 # Initialize colorama
 init(autoreset=True)
 
+# Import sounds module
+try:
+    from sounds import play_ambient, stop_ambient, is_playing, get_player, get_sound_icon
+    SOUNDS_AVAILABLE = True
+except ImportError:
+    SOUNDS_AVAILABLE = False
+
 # Constants
 DATA_DIR = Path(__file__).parent.parent / "data"
 CONFIG_PATH = Path(__file__).parent.parent / "config.json"
@@ -30,6 +37,8 @@ DEFAULT_CONFIG = {
     "auto_break": True,
     "export_format": "json",
     "export_directory": ".",
+    "focus_sound": "none",
+    "focus_sound_volume": 50,
 }
 
 
@@ -120,22 +129,47 @@ def format_time(seconds):
     return f"{mins:02d}:{secs:02d}"
 
 
-def countdown(duration_minutes, note=""):
-    """Run the focus timer countdown."""
+def countdown(duration_minutes, note="", sound_type=None, volume=None):
+    """Run the focus timer countdown with optional ambient sound."""
     duration_seconds = duration_minutes * 60
+    config = load_config()
+    
+    # Use config defaults if not specified
+    if sound_type is None:
+        sound_type = config.get("focus_sound", "none")
+    if volume is None:
+        volume = config.get("focus_sound_volume", 50)
+    
+    # Start ambient sound if requested and available
+    sound_started = False
+    sound_icon = ""
+    if sound_type != "none" and SOUNDS_AVAILABLE:
+        sound_started = play_ambient(sound_type, volume)
+        if sound_started:
+            sound_icon = get_sound_icon(sound_type)
     
     print(f"\n{Fore.CYAN}🍅  Focus Timer Started!")
     print(f"{Fore.CYAN}Duration: {duration_minutes} minutes")
     if note:
         print(f"{Fore.CYAN}Note: {note}")
+    if sound_started:
+        print(f"{Fore.MAGENTA}🔊  Ambient sound: {sound_icon} {sound_type.replace('-', ' ').title()} (vol: {volume}%)")
+    elif sound_type != "none" and not SOUNDS_AVAILABLE:
+        print(f"{Fore.YELLOW}⚠️  Sound module not available. Install pygame for ambient sounds.")
     print(f"{Fore.YELLOW}Press Ctrl+C to cancel{Style.RESET_ALL}\n")
     
     try:
         for remaining in range(duration_seconds, 0, -1):
-            # Clear line and print countdown
-            sys.stdout.write(f"\r{Fore.WHITE}⏱️  Time remaining: {Fore.YELLOW}{format_time(remaining)}{Style.RESET_ALL}  ")
+            # Build display line with sound indicator
+            sound_indicator = f" {sound_icon}" if sound_icon else ""
+            display = f"\r{Fore.WHITE}⏱️  Time remaining: {Fore.YELLOW}{format_time(remaining)}{sound_indicator}{Style.RESET_ALL}  "
+            sys.stdout.write(display)
             sys.stdout.flush()
             time.sleep(1)
+        
+        # Timer complete - stop ambient sound
+        if sound_started:
+            stop_ambient()
         
         # Timer complete
         sys.stdout.write(f"\r{Fore.GREEN}⏱️  Time remaining: 00:00{' ' * 20}{Style.RESET_ALL}\n")
@@ -149,11 +183,13 @@ def countdown(duration_minutes, note=""):
         show_quick_stats()
         
         # Offer break after focus session
-        config = load_config()
         if config.get("auto_break", True):
             offer_break()
         
     except KeyboardInterrupt:
+        # Stop ambient sound on cancel
+        if sound_started:
+            stop_ambient()
         print(f"\n\n{Fore.RED}⚠️  Timer cancelled. Session not saved.{Style.RESET_ALL}")
         sys.exit(0)
 
@@ -241,7 +277,11 @@ def cmd_start(args):
     duration = args.duration or config.get("default_duration", 25)
     note = args.note or ""
     
-    countdown(duration, note)
+    # Get sound settings from args or config
+    sound_type = args.sound if hasattr(args, 'sound') and args.sound else config.get("focus_sound", "none")
+    volume = args.volume if hasattr(args, 'volume') and args.volume is not None else config.get("focus_sound_volume", 50)
+    
+    countdown(duration, note, sound_type, volume)
 
 
 def cmd_stats(args):
@@ -290,6 +330,23 @@ def cmd_config(args):
         status = "enabled" if config["auto_break"] else "disabled"
         print(f"{Fore.GREEN}✓ Auto-break after focus {status}{Style.RESET_ALL}")
     
+    # Handle focus sound config
+    if hasattr(args, 'focus_sound') and args.focus_sound is not None:
+        valid_sounds = ["white-noise", "rain", "coffee-shop", "nature", "none"]
+        if args.focus_sound in valid_sounds:
+            config["focus_sound"] = args.focus_sound
+            save_config(config)
+            sound_name = args.focus_sound.replace('-', ' ').title()
+            print(f"{Fore.GREEN}✓ Default focus sound set to: {sound_name}{Style.RESET_ALL}")
+        else:
+            print(f"{Fore.RED}✗ Invalid sound type. Choose from: {', '.join(valid_sounds)}{Style.RESET_ALL}")
+    
+    if hasattr(args, 'focus_volume') and args.focus_volume is not None:
+        volume = max(0, min(100, args.focus_volume))
+        config["focus_sound_volume"] = volume
+        save_config(config)
+        print(f"{Fore.GREEN}✓ Default focus sound volume set to: {volume}%{Style.RESET_ALL}")
+    
     # Show current config
     print(f"\n{Fore.CYAN}Current Configuration:{Style.RESET_ALL}")
     print(f"  Default duration: {config['default_duration']} minutes")
@@ -298,6 +355,8 @@ def cmd_config(args):
     print(f"  Auto-break enabled: {config.get('auto_break', True)}")
     print(f"  Default export format: {config.get('export_format', 'json')}")
     print(f"  Export directory: {config.get('export_directory', '.')}")
+    print(f"  Focus sound: {config.get('focus_sound', 'none').replace('-', ' ').title()}")
+    print(f"  Focus sound volume: {config.get('focus_sound_volume', 50)}%")
 
 
 def cmd_export(args):
@@ -395,6 +454,11 @@ def main():
     start_parser = subparsers.add_parser("start", help="Start a focus session")
     start_parser.add_argument("-d", "--duration", type=int, help="Session duration in minutes")
     start_parser.add_argument("-n", "--note", type=str, help="Note about the session")
+    start_parser.add_argument("-s", "--sound", type=str, 
+                              choices=["white-noise", "rain", "coffee-shop", "nature", "none"],
+                              help="Ambient background sound during focus (white-noise, rain, coffee-shop, nature, none)")
+    start_parser.add_argument("-v", "--volume", type=int, metavar="0-100",
+                              help="Volume for ambient sound (0-100)")
     
     # Break command
     break_parser = subparsers.add_parser("break", help="Start a break timer")
@@ -413,6 +477,11 @@ def main():
     config_parser.add_argument("--sound", type=str, choices=["on", "off"], help="Enable/disable sound")
     config_parser.add_argument("--break-duration", type=int, help="Set default break duration in minutes")
     config_parser.add_argument("--auto-break", type=str, choices=["on", "off"], help="Enable/disable auto-break after focus")
+    config_parser.add_argument("--focus-sound", type=str, 
+                               choices=["white-noise", "rain", "coffee-shop", "nature", "none"],
+                               help="Set default ambient focus sound")
+    config_parser.add_argument("--focus-volume", type=int, metavar="0-100",
+                               help="Set default volume for ambient sound (0-100)")
     
     # Export command
     export_parser = subparsers.add_parser("export", help="Export session data to file")

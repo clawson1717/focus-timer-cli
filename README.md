@@ -8,6 +8,8 @@ A simple yet powerful CLI Pomodoro-style focus timer with session logging and pr
 - ☕ **Break timer** with auto-start after focus sessions
 - ⏱️ **Live countdown** with minutes:seconds display
 - 🔊 **Audio notification** when timer completes
+- 🎵 **Ambient focus sounds** - white noise, rain, coffee shop, or nature sounds to help you concentrate
+- 🔊 **Volume control** for ambient sounds (0-100)
 - 📝 **Session logging** with timestamps and optional notes
 - 📊 **Productivity statistics** - track your focus and break hours separately
 - 🔥 **Streak tracking** - build consistent habits
@@ -37,6 +39,39 @@ python src/focus_timer.py start --duration 45
 # Start with a note about what you're working on
 python src/focus_timer.py start --note "Working on project proposal"
 ```
+
+### Ambient Focus Sounds
+
+Enhance your concentration with ambient background sounds during focus sessions:
+
+```bash
+# Play white noise during focus (great for masking distractions)
+python src/focus_timer.py start --sound white-noise
+
+# Play rain sounds
+python src/focus_timer.py start --sound rain
+
+# Play coffee shop ambiance
+python src/focus_timer.py start --sound coffee-shop
+
+# Play nature sounds
+python src/focus_timer.py start --sound nature
+
+# Control volume (0-100, default: 50)
+python src/focus_timer.py start --sound rain --volume 30
+
+# Combine with other options
+python src/focus_timer.py start --duration 45 --sound coffee-shop --volume 40 --note "Deep work session"
+```
+
+**Available Sounds:**
+- `white-noise` - Steady white noise (great for masking distractions)
+- `rain` - Gentle rain sounds for a calming atmosphere
+- `coffee-shop` - Coffee shop ambiance for a productive vibe
+- `nature` - Natural ambient sounds for relaxation
+- `none` - No ambient sound (default)
+
+The sound automatically loops for the duration of your focus session and stops when the timer completes or is cancelled.
 
 After a focus session completes, you'll be automatically prompted to:
 - **Start a break** (default: 5 minutes)
@@ -90,6 +125,12 @@ python src/focus_timer.py config --auto-break on
 
 # Enable/disable sound
 python src/focus_timer.py config --sound on
+
+# Set default ambient focus sound
+python src/focus_timer.py config --focus-sound rain
+
+# Set default focus sound volume
+python src/focus_timer.py config --focus-volume 35
 ```
 
 ### Export session data
@@ -123,7 +164,8 @@ python src/focus_timer.py export --format csv --type focus --from 2024-01-01 --o
 focus-timer-cli/
 ├── src/
 │   ├── focus_timer.py    # Main timer application
-│   └── stats.py          # Statistics and analytics
+│   ├── stats.py          # Statistics and analytics
+│   └── sounds.py         # Ambient sound generation and playback
 ├── data/                 # Session logs (gitignored)
 │   └── sessions.json     # Session history
 ├── examples/             # Sample outputs
@@ -142,9 +184,15 @@ The `config.json` file stores your preferences:
   "break_duration": 5,
   "auto_break": true,
   "export_format": "json",
-  "export_directory": "."
+  "export_directory": ".",
+  "focus_sound": "none",
+  "focus_sound_volume": 50
 }
 ```
+
+**Focus Sound Options:**
+- `focus_sound`: Default ambient sound for focus sessions (`"white-noise"`, `"rain"`, `"coffee-shop"`, `"nature"`, or `"none"`)
+- `focus_sound_volume`: Default volume level from 0-100
 
 **Export Options:**
 - `export_format`: Default export format (`"json"` or `"csv"`)
