@@ -5,12 +5,14 @@ A simple yet powerful CLI Pomodoro-style focus timer with session logging and pr
 ## Features
 
 - 🍅 **Customizable focus timer** (default: 25 minutes)
+- ☕ **Break timer** with auto-start after focus sessions
 - ⏱️ **Live countdown** with minutes:seconds display
 - 🔊 **Audio notification** when timer completes
 - 📝 **Session logging** with timestamps and optional notes
-- 📊 **Productivity statistics** - track your focus hours
+- 📊 **Productivity statistics** - track your focus and break hours separately
 - 🔥 **Streak tracking** - build consistent habits
 - 🎨 **Colorful terminal UI** for better experience
+- ⚙️ **Configurable break duration** and auto-break settings
 
 ## Installation
 
@@ -35,6 +37,24 @@ python src/focus_timer.py start --duration 45
 python src/focus_timer.py start --note "Working on project proposal"
 ```
 
+After a focus session completes, you'll be automatically prompted to:
+- **Start a break** (default: 5 minutes)
+- **Extend break** (+5 minutes)
+- **Skip break** and continue
+- **Start next focus session** immediately
+
+### Take a break
+
+```bash
+# Start a break timer with default duration
+python src/focus_timer.py break
+
+# Start a break with custom duration
+python src/focus_timer.py break --duration 10
+```
+
+The break timer runs independently and can be started manually at any time.
+
 ### View statistics
 
 ```bash
@@ -58,8 +78,14 @@ python src/focus_timer.py history --limit 20
 # Show current configuration
 python src/focus_timer.py config
 
-# Set default timer duration
+# Set default focus duration
 python src/focus_timer.py config --duration 30
+
+# Set default break duration
+python src/focus_timer.py config --break-duration 5
+
+# Enable/disable auto-break after focus sessions
+python src/focus_timer.py config --auto-break on
 
 # Enable/disable sound
 python src/focus_timer.py config --sound on
@@ -73,9 +99,23 @@ focus-timer-cli/
 │   ├── focus_timer.py    # Main timer application
 │   └── stats.py          # Statistics and analytics
 ├── data/                 # Session logs (gitignored)
+│   └── sessions.json     # Session history
 ├── examples/             # Sample outputs
 ├── requirements.txt      # Python dependencies
-└── config.json          # User configuration
+└── config.json           # User configuration (created on first run)
+```
+
+### Configuration Options
+
+The `config.json` file stores your preferences:
+
+```json
+{
+  "default_duration": 25,
+  "sound_enabled": true,
+  "break_duration": 5,
+  "auto_break": true
+}
 ```
 
 ## Data Storage
