@@ -13,6 +13,7 @@ A simple yet powerful CLI Pomodoro-style focus timer with session logging and pr
 - 🔥 **Streak tracking** - build consistent habits
 - 🎨 **Colorful terminal UI** for better experience
 - ⚙️ **Configurable break duration** and auto-break settings
+- 📤 **Export session data** to JSON or CSV for external analysis
 
 ## Installation
 
@@ -91,6 +92,31 @@ python src/focus_timer.py config --auto-break on
 python src/focus_timer.py config --sound on
 ```
 
+### Export session data
+
+```bash
+# Export all sessions to JSON (default format)
+python src/focus_timer.py export
+
+# Export to CSV format
+python src/focus_timer.py export --format csv
+
+# Export to specific file
+python src/focus_timer.py export --output my_sessions.json
+
+# Export only focus sessions
+python src/focus_timer.py export --type focus
+
+# Export only break sessions
+python src/focus_timer.py export --type break
+
+# Export sessions from a date range
+python src/focus_timer.py export --from 2024-01-01 --to 2024-12-31
+
+# Export with all filters combined
+python src/focus_timer.py export --format csv --type focus --from 2024-01-01 --output january_focus.csv
+```
+
 ## Project Structure
 
 ```
@@ -114,9 +140,15 @@ The `config.json` file stores your preferences:
   "default_duration": 25,
   "sound_enabled": true,
   "break_duration": 5,
-  "auto_break": true
+  "auto_break": true,
+  "export_format": "json",
+  "export_directory": "."
 }
 ```
+
+**Export Options:**
+- `export_format`: Default export format (`"json"` or `"csv"`)
+- `export_directory`: Default directory for exported files (defaults to current directory)
 
 ## Data Storage
 

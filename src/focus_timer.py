@@ -4,6 +4,7 @@ Focus Timer CLI - A Pomodoro-style focus timer with session logging.
 """
 
 import argparse
+import csv
 import json
 import os
 import sys
@@ -27,6 +28,8 @@ DEFAULT_CONFIG = {
     "sound_file": None,
     "break_duration": 5,
     "auto_break": True,
+    "export_format": "json",
+    "export_directory": ".",
 }
 
 
@@ -293,6 +296,91 @@ def cmd_config(args):
     print(f"  Sound enabled: {config['sound_enabled']}")
     print(f"  Break duration: {config.get('break_duration', 5)} minutes")
     print(f"  Auto-break enabled: {config.get('auto_break', True)}")
+    print(f"  Default export format: {config.get('export_format', 'json')}")
+    print(f"  Export directory: {config.get('export_directory', '.')}")
+
+
+def cmd_export(args):
+    """Handle export command."""
+    sessions = load_sessions()
+    
+    if not sessions:
+        print(f"{Fore.YELLOW}No sessions recorded yet. Nothing to export.{Style.RESET_ALL}")
+        return
+    
+    config = load_config()
+    
+    # Apply filters
+    filtered_sessions = sessions.copy()
+    
+    # Filter by session type
+    if args.type:
+        filtered_sessions = [s for s in filtered_sessions if s.get("type", "focus") == args.type]
+    
+    # Filter by date range (from)
+    if args.from_date:
+        try:
+            from_date = datetime.fromisoformat(args.from_date)
+            filtered_sessions = [s for s in filtered_sessions if datetime.fromisoformat(s["timestamp"]) >= from_date]
+        except ValueError:
+            print(f"{Fore.RED}Error: Invalid --from date format. Use ISO format (YYYY-MM-DD or YYYY-MM-DDTHH:MM:SS){Style.RESET_ALL}")
+            return
+    
+    # Filter by date range (to)
+    if args.to_date:
+        try:
+            to_date = datetime.fromisoformat(args.to_date)
+            # Include the entire day if only date is provided
+            if to_date.hour == 0 and to_date.minute == 0 and to_date.second == 0:
+                to_date = to_date + timedelta(days=1) - timedelta(seconds=1)
+            filtered_sessions = [s for s in filtered_sessions if datetime.fromisoformat(s["timestamp"]) <= to_date]
+        except ValueError:
+            print(f"{Fore.RED}Error: Invalid --to date format. Use ISO format (YYYY-MM-DD or YYYY-MM-DDTHH:MM:SS){Style.RESET_ALL}")
+            return
+    
+    if not filtered_sessions:
+        print(f"{Fore.YELLOW}No sessions match the specified filters.{Style.RESET_ALL}")
+        return
+    
+    # Determine format
+    export_format = args.format or config.get("export_format", "json")
+    
+    # Determine output file
+    if args.output:
+        output_path = Path(args.output)
+    else:
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        output_path = Path(config.get("export_directory", ".")) / f"focus_timer_export_{timestamp}.{export_format}"
+    
+    # Ensure output directory exists
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    
+    # Export data
+    try:
+        if export_format.lower() == "json":
+            with open(output_path, "w", encoding="utf-8") as f:
+                json.dump(filtered_sessions, f, indent=2, ensure_ascii=False)
+        elif export_format.lower() == "csv":
+            with open(output_path, "w", newline="", encoding="utf-8") as f:
+                if filtered_sessions:
+                    fieldnames = ["timestamp", "type", "duration", "note"]
+                    writer = csv.DictWriter(f, fieldnames=fieldnames)
+                    writer.writeheader()
+                    for session in filtered_sessions:
+                        writer.writerow({
+                            "timestamp": session.get("timestamp", ""),
+                            "type": session.get("type", "focus"),
+                            "duration": session.get("duration", 0),
+                            "note": session.get("note", "")
+                        })
+        else:
+            print(f"{Fore.RED}Error: Unsupported format '{export_format}'. Use 'json' or 'csv'.{Style.RESET_ALL}")
+            return
+        
+        print(f"{Fore.GREEN}✓ Exported {len(filtered_sessions)} session(s) to {output_path}{Style.RESET_ALL}")
+        
+    except Exception as e:
+        print(f"{Fore.RED}Error exporting data: {e}{Style.RESET_ALL}")
 
 
 def main():
@@ -326,6 +414,14 @@ def main():
     config_parser.add_argument("--break-duration", type=int, help="Set default break duration in minutes")
     config_parser.add_argument("--auto-break", type=str, choices=["on", "off"], help="Enable/disable auto-break after focus")
     
+    # Export command
+    export_parser = subparsers.add_parser("export", help="Export session data to file")
+    export_parser.add_argument("-f", "--format", type=str, choices=["json", "csv"], help="Export format (json or csv)")
+    export_parser.add_argument("-o", "--output", type=str, help="Output file path")
+    export_parser.add_argument("--from", dest="from_date", type=str, help="Start date filter (ISO format: YYYY-MM-DD or YYYY-MM-DDTHH:MM:SS)")
+    export_parser.add_argument("--to", dest="to_date", type=str, help="End date filter (ISO format: YYYY-MM-DD or YYYY-MM-DDTHH:MM:SS)")
+    export_parser.add_argument("--type", type=str, choices=["focus", "break"], help="Filter by session type")
+    
     args = parser.parse_args()
     
     if args.command == "start":
@@ -338,6 +434,8 @@ def main():
         cmd_history(args)
     elif args.command == "config":
         cmd_config(args)
+    elif args.command == "export":
+        cmd_export(args)
     else:
         parser.print_help()
 
